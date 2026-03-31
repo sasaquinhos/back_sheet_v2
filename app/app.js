@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const lockBtn = document.getElementById('lock-btn');
     const clearAllBtn = document.getElementById('clear-all-btn');
     const podiumBtn = document.getElementById('podium-btn');
+    const expandBtn = document.getElementById('expand-btn'); // 復元
     const seatMapContainer = document.getElementById('seat-map-container');
     const scrollSlider = document.getElementById('scroll-slider');
 
@@ -50,14 +51,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const updatePassBtn = document.getElementById('update-pass-btn');
     const newAdminPass = document.getElementById('new-admin-pass');
 
-    // --- Web化対応: API設定 ---
+    // --- API設定 ---
     const API_URL = "https://script.google.com/macros/s/AKfycbzHISB2XfHMVHyROwBlr2gD9Dkf8ky0dyHes0HXSC9u5vKq4ERgAVgOYF_Oz6u_wCesmw/exec";
 
-    // 0. 認証処理
+    // --- 0. 認証と状態管理 ---
     function getStoredKey() {
         return localStorage.getItem('projecte_access_key');
     }
-
     function saveStoredKey(key) {
         localStorage.setItem('projecte_access_key', key);
     }
@@ -95,14 +95,12 @@ document.addEventListener('DOMContentLoaded', () => {
         mainContent.classList.remove('hidden');
     }
 
-    // 入場ボタン
+    // 認証ボタン
     accessSubmitBtn.addEventListener('click', async () => {
         const key = accessKeyInput.value.trim();
         if (!key) return;
-        
         accessSubmitBtn.disabled = true;
         accessError.textContent = "検証中...";
-        
         try {
             const res = await fetch(`${API_URL}?action=verifyKey&accessKey=${key}`);
             const json = await res.json();
@@ -131,7 +129,6 @@ document.addEventListener('DOMContentLoaded', () => {
     adminLoginSubmit.addEventListener('click', async () => {
         const pass = adminPassInput.value;
         if (!pass) return;
-
         adminLoginSubmit.disabled = true;
         try {
             const res = await fetch(API_URL, {
@@ -155,15 +152,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     adminPanelClose.addEventListener('click', () => adminPanel.classList.add('hidden'));
 
-    // キー生成
     generateKeyBtn.addEventListener('click', async () => {
-        // パスワードを再利用するか、別途セッションで管理するかだが、今回はモーダルを開いたままなので入力済みのもの（もしくは再度聞く）
-        // ここでは便宜上、入力されていたパスワードを一時保持して使うか、再度入力を求める。
-        // シンプルにするため、パネルを開く際に使ったパスワードを内部で保持するか、サーバー側でセッションを持たせたいが、GASなので都度送信。
-        // （本来は localStorage に admin_token を入れるべきだが、今回は手順を簡略化）
         const pass = adminPassInput.value || prompt("管理者パスワードを再入力してください");
         if (!pass) return;
-
         try {
             const res = await fetch(API_URL, {
                 method: "POST",
@@ -187,12 +178,10 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // パスワード更新
     updatePassBtn.addEventListener('click', async () => {
         const pass = prompt("現在のパスワードを入力してください");
         const next = newAdminPass.value;
         if (!pass || !next) return;
-
         try {
             const res = await fetch(API_URL, {
                 method: "POST",
@@ -207,8 +196,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
 
-    // --- 既存のアプリケーションロジック ---
-
+    // --- 1. データの保存・同期 ---
     async function loadData() {
         if (!API_URL) return;
         const key = getStoredKey();
@@ -216,12 +204,10 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             const res = await fetch(`${API_URL}?action=getSeatData&accessKey=${key}`);
             const json = await res.json();
-            
             if (json.authError) {
                 showAccessScreen("セッションが切れました");
                 return;
             }
-
             if (json.status === "success") {
                 seatData = json.data || {};
                 if (Object.keys(seatData).length === 0) fillDefaultSeats();
@@ -238,16 +224,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!API_URL) return;
         const key = getStoredKey();
         try {
-            // mode: "no-cors" はレスポンスが取れないため、
-            // 認証状況を確認したい場合は通常のモード（cors）で送る必要がある。
-            // GAS側で ContentService を返していれば cors で問題ない。
             const res = await fetch(API_URL, {
                 method: "POST",
-                body: JSON.stringify({
-                    action: "saveSeatData",
-                    accessKey: key,
-                    data: seatData
-                })
+                body: JSON.stringify({ action: "saveSeatData", accessKey: key, data: seatData })
             });
             const json = await res.json();
             if (json.authError) {
@@ -256,13 +235,8 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             setSyncStatus('idle', '保存完了');
         } catch (e) {
-            console.error(e);
             setSyncStatus('error', '保存失敗');
         }
-    }
-
-    function renderAllSeats() {
-        createSeats(); // 再生成してデータを反映
     }
 
     let saveTimeout = null;
@@ -278,11 +252,17 @@ document.addEventListener('DOMContentLoaded', () => {
         syncStatus.textContent = text;
     }
 
+    // --- 2. 座席生成ロジック (復元) ---
+    function renderAllSeats() {
+        createSeats();
+    }
+
     function createSeats() {
         seatGrid.innerHTML = '';
         const currentTotalCols = isExpanded ? TOTAL_COLS + COLS_PER_BLOCK : TOTAL_COLS;
         const startColNumber = 88 - currentTotalCols + 1;
 
+        // 列番号ラベル
         const emptyCorner = document.createElement('div');
         emptyCorner.className = 'grid-label';
         seatGrid.appendChild(emptyCorner);
@@ -294,6 +274,7 @@ document.addEventListener('DOMContentLoaded', () => {
             seatGrid.appendChild(colLabel);
         }
 
+        // 座席行
         for (let r = 1; r <= ROWS; r++) {
             const rowLabel = document.createElement('div');
             rowLabel.className = 'grid-label row-label';
@@ -325,10 +306,10 @@ document.addEventListener('DOMContentLoaded', () => {
         div.dataset.row = row;
         div.dataset.col = col;
 
+        // マス目属性 (元の実装に準拠)
         div.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return;
             e.preventDefault();
-            isDragging = true;
             handleSeatClick(id, true);
         });
 
@@ -346,6 +327,24 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { passive: false });
 
         return div;
+    }
+
+    // --- 3. 描画ロジックの復元 ---
+    function processPoint(x, y) {
+        const target = document.elementFromPoint(x, y);
+        if (target && target.classList.contains('seat')) {
+            handleSeatClick(target.id);
+        }
+    }
+
+    function processLine(x1, y1, x2, y2) {
+        const dist = Math.hypot(x2 - x1, y2 - y1);
+        if (dist === 0) return;
+        const steps = Math.ceil(dist / 10); // 10pxサンプリング
+        for (let i = 0; i <= steps; i++) {
+            const t = i / steps;
+            processPoint(x1 + (x2 - x1) * t, y1 + (y2 - y1) * t);
+        }
     }
 
     function handleSeatClick(seatId, isStartOfAction = false) {
@@ -417,6 +416,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // --- 4. 集計・UI更新 ---
     function updateSummary() {
         const counts = {};
         GROUPS.forEach(g => counts[g] = 0);
@@ -424,7 +424,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         Object.keys(seatData).forEach(seatId => {
             const group = seatData[seatId];
-            const blockId = parseInt(seatId.split('-')[0].replace('block', ''));
+            const blockNumStr = seatId.split('-')[0].replace('block', '');
+            const blockId = parseInt(blockNumStr);
             if (activeBlocks.indexOf(blockId) !== -1 && counts[group] !== undefined) {
                 counts[group]++;
             }
@@ -444,7 +445,9 @@ document.addEventListener('DOMContentLoaded', () => {
         if (totalBHEl) totalBHEl.textContent = totalBH;
     }
 
-    // イベント設定
+    // --- 5. イベントリスナー統合 ---
+
+    // グループ選択ボタン
     groupButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             groupButtons.forEach(b => b.classList.remove('active'));
@@ -463,21 +466,44 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // お立ち台ボタン
     podiumBtn.addEventListener('click', () => {
         currentGroup = 'J';
         currentGroupDisplay.textContent = 'お立ち台 (濃いグレー)';
         groupButtons.forEach(b => b.classList.remove('active'));
         specialInputA.classList.add('hidden');
+        if (lockBtn) {
+            lockBtn.classList.remove('locked');
+            lockBtn.textContent = 'ロック';
+            seatGrid.classList.remove('is-locked');
+        }
     });
 
+    // 拡張ボタン (復元)
     expandBtn.addEventListener('click', () => {
         isExpanded = !isExpanded;
-        expandBtn.textContent = isExpanded ? '縮小' : '拡張';
-        if (!isExpanded) requestSave();
+        if (isExpanded) {
+            expandBtn.textContent = '縮小';
+            seatGrid.classList.add('expanded');
+        } else {
+            expandBtn.textContent = '拡張';
+            seatGrid.classList.remove('expanded');
+            requestSave();
+            if (seatMapContainer) seatMapContainer.scrollTo({ left: 0, behavior: 'smooth' });
+        }
         createSeats();
         updateSummary();
+
+        if (isExpanded && seatMapContainer) {
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    seatMapContainer.scrollTo({ left: seatMapContainer.scrollWidth, behavior: 'smooth' });
+                });
+            });
+        }
     });
 
+    // ロックボタン
     lockBtn.addEventListener('click', () => {
         currentGroup = null;
         currentGroupDisplay.textContent = 'ロック中';
@@ -488,6 +514,7 @@ document.addEventListener('DOMContentLoaded', () => {
         seatGrid.classList.add('is-locked');
     });
 
+    // クリアボタン
     clearAllBtn.addEventListener('click', () => {
         if (!confirm('すべての座席選択を解除してもよろしいですか？（※お立ち台は残ります）')) return;
         seatData = {};
@@ -497,9 +524,11 @@ document.addEventListener('DOMContentLoaded', () => {
         requestSave();
     });
 
+    // 中央塗りつぶし入力
     colCountInputA.addEventListener('keydown', (e) => { if (e.key === 'Enter') { runGroupAFill(); colCountInputA.blur(); } });
     colCountInputA.addEventListener('blur', runGroupAFill);
 
+    // スライダー制御
     function updateSliderRange() {
         if (!scrollSlider || !seatMapContainer) return;
         const maxScroll = seatMapContainer.scrollWidth - seatMapContainer.clientWidth;
@@ -507,19 +536,31 @@ document.addEventListener('DOMContentLoaded', () => {
         scrollSlider.value = seatMapContainer.scrollLeft;
     }
 
-    scrollSlider.addEventListener('input', () => { seatMapContainer.scrollLeft = scrollSlider.value; });
-    seatMapContainer.addEventListener('scroll', () => { scrollSlider.value = seatMapContainer.scrollLeft; });
-    window.addEventListener('resize', updateSliderRange);
+    scrollSlider.addEventListener('input', () => { if (seatMapContainer) seatMapContainer.scrollLeft = scrollSlider.value; });
+    seatMapContainer.addEventListener('scroll', () => { if (scrollSlider) scrollSlider.value = seatMapContainer.scrollLeft; });
+    
+    // タッチムーブ補完
+    seatGrid.addEventListener('touchmove', (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        const touch = e.touches[0];
+        const currX = touch.clientX;
+        const currY = touch.clientY;
+        if (lastX !== null && lastY !== null) processLine(lastX, lastY, currX, currY);
+        else processPoint(currX, currY);
+        lastX = currX;
+        lastY = currY;
+    }, { passive: false });
 
-    function resetDrag() { isDragging = false; lastProcessedSeatId = null; dragAction = null; }
+    function resetDrag() { isDragging = false; lastProcessedSeatId = null; dragAction = null; lastX = null; lastY = null; }
     window.addEventListener('mouseup', resetDrag);
     window.addEventListener('touchend', resetDrag);
+    window.addEventListener('touchcancel', resetDrag);
+    window.addEventListener('resize', updateSliderRange);
 
-    // アプリ初期化
+    // --- 起動 ---
     function initApp() {
         loadData();
     }
-
-    // 初回実行: 認証チェック
     checkAuth();
 });
