@@ -13,9 +13,10 @@
         <h1>バック側座席管理</h1>
     </header>
 
-    <main>
+    <main id="main-content" class="hidden">
         <!-- グループ選択エリア -->
         <section id="controls">
+            <!-- (既存のコンテンツ) -->
             <div class="group-selector">
                 <div class="group-item">
                     <button type="button" class="group-btn" data-group="A">中央</button>
@@ -71,6 +72,7 @@
                 <button type="button" id="expand-btn">拡張</button>
                 <button type="button" id="lock-btn">ロック</button>
                 <button type="button" id="clear-all-btn">クリア</button>
+                <button type="button" id="admin-open-btn">管理者</button>
             </div>
         </section>
 
@@ -85,8 +87,69 @@
         <div id="scroll-slider-container">
             <input type="range" id="scroll-slider" min="0" value="0" step="1">
         </div>
-
     </main>
+
+    <!-- アクセスコード入力画面 (初期表示) -->
+    <div id="access-screen" class="overlay">
+        <div class="auth-box">
+            <h2>アクセスコード入力</h2>
+            <div class="input-group">
+                <input type="text" id="access-key-input" placeholder="アクセスコードを入力" maxlength="8">
+                <button id="access-submit-btn">入場</button>
+            </div>
+            <p id="access-error" class="error-msg"></p>
+            <div class="auth-footer">
+                <button id="access-admin-btn" class="secondary-btn">管理者ログイン</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 管理者ログインモーダル -->
+    <div id="admin-login-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>管理者ログイン</h3>
+            <input type="password" id="admin-pass-input" placeholder="管理者パスワード">
+            <div class="modal-buttons">
+                <button id="admin-login-submit">ログイン</button>
+                <button id="admin-login-cancel">キャンセル</button>
+            </div>
+            <p id="admin-login-error" class="error-msg"></p>
+        </div>
+    </div>
+
+    <!-- 管理者設定パネル -->
+    <div id="admin-panel" class="modal hidden">
+        <div class="modal-content admin-config">
+            <h3>管理者設定</h3>
+            
+            <section class="admin-section">
+                <h4>アクセスキー生成</h4>
+                <div class="timer-inputs">
+                    <label>有効時間: 
+                        <input type="number" id="key-hours" value="1" min="0" max="24"> 時間
+                        <input type="number" id="key-mins" value="0" min="0" max="59"> 分
+                    </label>
+                </div>
+                <button id="generate-key-btn">キーを生成</button>
+                <div id="generated-key-display" class="key-result hidden">
+                    <p>生成されたキー: <strong id="new-key-val"></strong></p>
+                    <p>期限: <span id="new-key-expiry"></span></p>
+                </div>
+            </section>
+
+            <hr>
+
+            <section class="admin-section">
+                <h4>パスワード変更</h4>
+                <input type="password" id="new-admin-pass" placeholder="新しいパスワード">
+                <button id="update-pass-btn">パスワード更新</button>
+            </section>
+
+            <div class="modal-buttons">
+                <button id="admin-panel-close">閉じる</button>
+            </div>
+        </div>
+    </div>
 
     <script src="app/app.js"></script>
 </body>
