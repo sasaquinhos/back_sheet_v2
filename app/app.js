@@ -11,7 +11,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let dragAction = null; // 'paint' or 'erase'
     let lastX = null;
     let lastY = null;
+    let isExpanded = false;
 
+    // --- DOM要素 ---
+    const mainContent = document.getElementById('main-content');
+    const accessScreen = document.getElementById('access-screen');
     const seatGrid = document.getElementById('seat-grid');
     const groupButtons = document.querySelectorAll('.group-btn');
     const specialInputA = document.getElementById('special-input-a');
@@ -24,67 +28,248 @@ document.addEventListener('DOMContentLoaded', () => {
     const seatMapContainer = document.getElementById('seat-map-container');
     const scrollSlider = document.getElementById('scroll-slider');
 
-    // --- Web化対応: API設定 (GAS デプロイ後に URL を差し替えてください) ---
-    const API_URL = "https://script.google.com/macros/s/AKfycbzBNGg5rIQh8S5VxRX3LHCJ-1zPlWA8WOENOSTPej-DvvnSOwh6ysJ1xMEGm93MtrQVRQ/exec";
+    // 認証・管理者関連
+    const accessKeyInput = document.getElementById('access-key-input');
+    const accessSubmitBtn = document.getElementById('access-submit-btn');
+    const accessError = document.getElementById('access-error');
+    const accessAdminBtn = document.getElementById('access-admin-btn');
+    const adminLoginModal = document.getElementById('admin-login-modal');
+    const adminPassInput = document.getElementById('admin-pass-input');
+    const adminLoginSubmit = document.getElementById('admin-login-submit');
+    const adminLoginCancel = document.getElementById('admin-login-cancel');
+    const adminLoginError = document.getElementById('admin-login-error');
+    const adminOpenBtn = document.getElementById('admin-open-btn');
+    const adminPanel = document.getElementById('admin-panel');
+    const adminPanelClose = document.getElementById('admin-panel-close');
+    const generateKeyBtn = document.getElementById('generate-key-btn');
+    const keyHoursInput = document.getElementById('key-hours');
+    const keyMinsInput = document.getElementById('key-mins');
+    const generatedKeyDisplay = document.getElementById('generated-key-display');
+    const newKeyVal = document.getElementById('new-key-val');
+    const newKeyExpiry = document.getElementById('new-key-expiry');
+    const updatePassBtn = document.getElementById('update-pass-btn');
+    const newAdminPass = document.getElementById('new-admin-pass');
 
-    // 0. データの読込・保存
-    async function loadData() {
-        if (!API_URL) return;
-        setSyncStatus('saving', '読込中...');
+    // --- Web化対応: API設定 ---
+    const API_URL = "https://script.google.com/macros/s/AKfycbzHISB2XfHMVHyROwBlr2gD9Dkf8ky0dyHes0HXSC9u5vKq4ERgAVgOYF_Oz6u_wCesmw/exec";
+
+    // 0. 認証処理
+    function getStoredKey() {
+        return localStorage.getItem('projecte_access_key');
+    }
+
+    function saveStoredKey(key) {
+        localStorage.setItem('projecte_access_key', key);
+    }
+
+    async function checkAuth() {
+        const key = getStoredKey();
+        if (!key) {
+            showAccessScreen();
+            return;
+        }
+
         try {
-            const res = await fetch(API_URL);
+            const res = await fetch(`${API_URL}?action=verifyKey&accessKey=${key}`);
             const json = await res.json();
             if (json.status === "success") {
-                // サーバーからデータが取れた場合はそれを反映
+                showMainContent();
+                initApp();
+            } else {
+                showAccessScreen(json.message);
+            }
+        } catch (e) {
+            console.error(e);
+            showAccessScreen("通信エラーが発生しました");
+        }
+    }
+
+    function showAccessScreen(error = "") {
+        mainContent.classList.add('hidden');
+        accessScreen.classList.remove('hidden');
+        if (error) accessError.textContent = error;
+    }
+
+    function showMainContent() {
+        accessScreen.classList.add('hidden');
+        mainContent.classList.remove('hidden');
+    }
+
+    // 入場ボタン
+    accessSubmitBtn.addEventListener('click', async () => {
+        const key = accessKeyInput.value.trim();
+        if (!key) return;
+        
+        accessSubmitBtn.disabled = true;
+        accessError.textContent = "検証中...";
+        
+        try {
+            const res = await fetch(`${API_URL}?action=verifyKey&accessKey=${key}`);
+            const json = await res.json();
+            if (json.status === "success") {
+                saveStoredKey(key);
+                showMainContent();
+                initApp();
+            } else {
+                accessError.textContent = json.message;
+            }
+        } catch (e) {
+            accessError.textContent = "接続に失敗しました";
+        } finally {
+            accessSubmitBtn.disabled = false;
+        }
+    });
+
+    // 管理者ログイン関連
+    accessAdminBtn.addEventListener('click', () => adminLoginModal.classList.remove('hidden'));
+    adminOpenBtn.addEventListener('click', () => adminLoginModal.classList.remove('hidden'));
+    adminLoginCancel.addEventListener('click', () => {
+        adminLoginModal.classList.add('hidden');
+        adminLoginError.textContent = "";
+    });
+
+    adminLoginSubmit.addEventListener('click', async () => {
+        const pass = adminPassInput.value;
+        if (!pass) return;
+
+        adminLoginSubmit.disabled = true;
+        try {
+            const res = await fetch(API_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "adminLogin", adminPassword: pass })
+            });
+            const json = await res.json();
+            if (json.status === "success") {
+                adminLoginModal.classList.add('hidden');
+                adminPanel.classList.remove('hidden');
+                adminPassInput.value = "";
+            } else {
+                adminLoginError.textContent = json.message;
+            }
+        } catch (e) {
+            adminLoginError.textContent = "ログインに失敗しました";
+        } finally {
+            adminLoginSubmit.disabled = false;
+        }
+    });
+
+    adminPanelClose.addEventListener('click', () => adminPanel.classList.add('hidden'));
+
+    // キー生成
+    generateKeyBtn.addEventListener('click', async () => {
+        // パスワードを再利用するか、別途セッションで管理するかだが、今回はモーダルを開いたままなので入力済みのもの（もしくは再度聞く）
+        // ここでは便宜上、入力されていたパスワードを一時保持して使うか、再度入力を求める。
+        // シンプルにするため、パネルを開く際に使ったパスワードを内部で保持するか、サーバー側でセッションを持たせたいが、GASなので都度送信。
+        // （本来は localStorage に admin_token を入れるべきだが、今回は手順を簡略化）
+        const pass = adminPassInput.value || prompt("管理者パスワードを再入力してください");
+        if (!pass) return;
+
+        try {
+            const res = await fetch(API_URL, {
+                method: "POST",
+                body: JSON.stringify({ 
+                    action: "generateKey", 
+                    adminPassword: pass,
+                    hours: keyHoursInput.value,
+                    mins: keyMinsInput.value
+                })
+            });
+            const json = await res.json();
+            if (json.status === "success") {
+                generatedKeyDisplay.classList.remove('hidden');
+                newKeyVal.textContent = json.key;
+                newKeyExpiry.textContent = json.expiry;
+            } else {
+                alert(json.message);
+            }
+        } catch (e) {
+            alert("生成に失敗しました");
+        }
+    });
+
+    // パスワード更新
+    updatePassBtn.addEventListener('click', async () => {
+        const pass = prompt("現在のパスワードを入力してください");
+        const next = newAdminPass.value;
+        if (!pass || !next) return;
+
+        try {
+            const res = await fetch(API_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "updateAdminPass", oldPassword: pass, newPassword: next })
+            });
+            const json = await res.json();
+            alert(json.message);
+            if (json.status === "success") newAdminPass.value = "";
+        } catch (e) {
+            alert("更新に失敗しました");
+        }
+    });
+
+
+    // --- 既存のアプリケーションロジック ---
+
+    async function loadData() {
+        if (!API_URL) return;
+        const key = getStoredKey();
+        setSyncStatus('saving', '読込中...');
+        try {
+            const res = await fetch(`${API_URL}?action=getSeatData&accessKey=${key}`);
+            const json = await res.json();
+            
+            if (json.authError) {
+                showAccessScreen("セッションが切れました");
+                return;
+            }
+
+            if (json.status === "success") {
                 seatData = json.data || {};
-
-                // 初回（データが空）の場合のみ、デフォルト座席を埋める
-                if (Object.keys(seatData).length === 0) {
-                    fillDefaultSeats();
-                }
-
-                Object.entries(seatData).forEach(([id, group]) => {
-                    const el = document.getElementById(id);
-                    if (el) {
-                        el.classList.add(`group-${group}`);
-                        el.dataset.color = group;
-                    }
-                });
+                if (Object.keys(seatData).length === 0) fillDefaultSeats();
+                renderAllSeats();
                 updateSummary();
             }
             setSyncStatus('idle', '同期完了');
         } catch (e) {
-            console.error(e);
             setSyncStatus('error', '読込失敗');
         }
     }
 
-    let saveTimeout = null;
-    function requestSave() {
-        if (!API_URL) return;
-        setSyncStatus('saving', '保存中...');
-        if (saveTimeout) clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(saveData, 2000); // 2秒後に保存（頻度を抑える）
-    }
-
     async function saveData() {
         if (!API_URL) return;
+        const key = getStoredKey();
         try {
-            // no-cors mode では Content-Type: application/json が使えないため
-            // 単純な文字列として送信する
-            await fetch(API_URL, {
+            // mode: "no-cors" はレスポンスが取れないため、
+            // 認証状況を確認したい場合は通常のモード（cors）で送る必要がある。
+            // GAS側で ContentService を返していれば cors で問題ない。
+            const res = await fetch(API_URL, {
                 method: "POST",
-                mode: "no-cors",
-                headers: {
-                    "Content-Type": "text/plain"
-                },
-                body: JSON.stringify(seatData)
+                body: JSON.stringify({
+                    action: "saveSeatData",
+                    accessKey: key,
+                    data: seatData
+                })
             });
-            setSyncStatus('idle', '保存完了（送信済）');
+            const json = await res.json();
+            if (json.authError) {
+                showAccessScreen("セッションが切れました");
+                return;
+            }
+            setSyncStatus('idle', '保存完了');
         } catch (e) {
             console.error(e);
             setSyncStatus('error', '保存失敗');
         }
+    }
+
+    function renderAllSeats() {
+        createSeats(); // 再生成してデータを反映
+    }
+
+    let saveTimeout = null;
+    function requestSave() {
+        setSyncStatus('saving', '保存中...');
+        if (saveTimeout) clearTimeout(saveTimeout);
+        saveTimeout = setTimeout(saveData, 2000);
     }
 
     function setSyncStatus(type, text) {
@@ -93,16 +278,11 @@ document.addEventListener('DOMContentLoaded', () => {
         syncStatus.textContent = text;
     }
 
-    let isExpanded = false;
-
-    // 1. 座席の生成
     function createSeats() {
-        // グリッドをクリア（再生成用）
         seatGrid.innerHTML = '';
         const currentTotalCols = isExpanded ? TOTAL_COLS + COLS_PER_BLOCK : TOTAL_COLS;
         const startColNumber = 88 - currentTotalCols + 1;
 
-        // 列番号のヘッダーを表示 (上端)
         const emptyCorner = document.createElement('div');
         emptyCorner.className = 'grid-label';
         seatGrid.appendChild(emptyCorner);
@@ -120,22 +300,16 @@ document.addEventListener('DOMContentLoaded', () => {
             rowLabel.textContent = (ROWS - r + 1);
             seatGrid.appendChild(rowLabel);
 
-            // ブロックごとの生成
-            // 拡張時: block0 (23-44), block1 (45-66), block2 (67-88)
-            // 通常時: block1 (45-66), block2 (67-88)
             const blocks = isExpanded ? [0, 1, 2] : [1, 2];
             let absoluteCol = 1;
             blocks.forEach(bId => {
                 for (let c = 1; c <= COLS_PER_BLOCK; c++) {
                     const seatId = `block${bId}-r${r}-c${c}`;
                     const seat = createSeatElement(seatId, r, absoluteCol);
-                    
-                    // 既存のデータを反映
                     if (seatData[seatId]) {
                         seat.classList.add(`group-${seatData[seatId]}`);
                         seat.dataset.color = seatData[seatId];
                     }
-
                     seatGrid.appendChild(seat);
                     absoluteCol++;
                 }
@@ -144,87 +318,24 @@ document.addEventListener('DOMContentLoaded', () => {
         updateSliderRange();
     }
 
-    // 拡張ボタンのイベントリスナー
-    const expandBtn = document.getElementById('expand-btn');
-    if (expandBtn) {
-        expandBtn.addEventListener('click', () => {
-            isExpanded = !isExpanded;
-            
-            if (isExpanded) {
-                expandBtn.textContent = '縮小';
-                seatGrid.classList.add('expanded');
-            } else {
-                expandBtn.textContent = '拡張';
-                seatGrid.classList.remove('expanded');
-                requestSave();
-
-                // 縮小時、スクロールを左端（初期位置）に戻す
-                const container = document.getElementById('seat-map-container');
-                if (container) {
-                    container.scrollTo({
-                        left: 0,
-                        behavior: 'smooth'
-                    });
-                }
-            }
-            
-            // 再描画
-            createSeats();
-            updateSummary();
-
-            // 拡張時のみ、スクロールを右端（既存エリア）に寄せる
-            if (isExpanded) {
-                const container = document.getElementById('seat-map-container');
-                if (container) {
-                    const scrollToRight = () => {
-                        // 描画サイクルに合わせて2フレーム待機（より確実にレイアウト確定を待つ）
-                        requestAnimationFrame(() => {
-                            requestAnimationFrame(() => {
-                                container.scrollTo({
-                                    left: container.scrollWidth, // 既存エリア（右端）を表示
-                                    behavior: 'smooth'
-                                });
-                            });
-                        });
-                    };
-                    scrollToRight();
-                }
-            }
-        });
-    }
-
-
-
-
-
-
     function createSeatElement(id, row, col) {
         const div = document.createElement('div');
         div.className = 'seat';
         div.id = id;
-        div.title = id;
-
-        // data-row, data-col 属性を設定
         div.dataset.row = row;
         div.dataset.col = col;
-        // グループAの範囲を定義（便宜上すべてAとして初期化するが、描画ロジックで制御）
-        div.dataset.group = 'A';
 
-        // --- マウス操作 ---
         div.addEventListener('mousedown', (e) => {
-            if (e.button !== 0) return; // 左クリックのみ
+            if (e.button !== 0) return;
             e.preventDefault();
             isDragging = true;
-            handleSeatClick(id, true); // 開始フラグ
+            handleSeatClick(id, true);
         });
 
         div.addEventListener('mouseenter', () => {
-            if (isDragging) {
-                handleSeatClick(id);
-            }
+            if (isDragging) handleSeatClick(id);
         });
 
-        // --- タッチ操作 (スマホ) ---
         div.addEventListener('touchstart', (e) => {
             e.preventDefault();
             isDragging = true;
@@ -237,263 +348,58 @@ document.addEventListener('DOMContentLoaded', () => {
         return div;
     }
 
-    // 指定された座標の座席を処理
-    function processPoint(x, y) {
-        const target = document.elementFromPoint(x, y);
-        if (target && target.classList.contains('seat')) {
-            handleSeatClick(target.id);
-        }
-    }
-
-    // 前回の座標から現在の座標までを補完して処理
-    function processLine(x1, y1, x2, y2) {
-        const dist = Math.hypot(x2 - x1, y2 - y1);
-        if (dist === 0) return;
-        const steps = Math.ceil(dist / 10); // 10pxごとにサンプリング
-
-        for (let i = 0; i <= steps; i++) {
-            const t = i / steps;
-            const x = x1 + (x2 - x1) * t;
-            const y = y1 + (y2 - y1) * t;
-            processPoint(x, y);
-        }
-    }
-
-    // タッチムーブ（補完処理付き）
-    seatGrid.addEventListener('touchmove', (e) => {
-        if (!isDragging) return;
-        e.preventDefault();
-
-        const touch = e.touches[0];
-        const currX = touch.clientX;
-        const currY = touch.clientY;
-
-        if (lastX !== null && lastY !== null) {
-            processLine(lastX, lastY, currX, currY);
-        } else {
-            processPoint(currX, currY);
-        }
-
-        lastX = currX;
-        lastY = currY;
-    }, { passive: false });
-
-    // ドラッグ状態のリセット
-    function resetDrag() {
-        isDragging = false;
-        lastProcessedSeatId = null;
-        dragAction = null;
-        lastX = null;
-        lastY = null;
-    }
-
-    window.addEventListener('mouseup', resetDrag);
-    window.addEventListener('touchend', resetDrag);
-    window.addEventListener('touchcancel', resetDrag);
-
-    // 2. グループ選択
-    groupButtons.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const group = btn.dataset.group;
-
-            // アクティブ表示の切り替え
-            groupButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            currentGroup = group;
-            const groupName = btn.textContent;
-            currentGroupDisplay.textContent = `${groupName}`;
-
-            // ロック解除（色を選択した時点で自動的にロック解除）
-            if (lockBtn) {
-                lockBtn.classList.remove('locked');
-                lockBtn.textContent = 'ロック';
-                seatGrid.classList.remove('is-locked');
-            }
-
-            // Aグループ特有の表示制御
-            if (group === 'A') {
-                specialInputA.classList.remove('hidden');
-                // 少し遅延させて確実にフォーカスを当てる
-                setTimeout(() => colCountInputA.focus(), 10);
-            } else {
-                specialInputA.classList.add('hidden');
-            }
-        });
-
-    });
-
-    // お立ち台ボタンの処理（ループの外に配置）
-    if (podiumBtn) {
-        podiumBtn.addEventListener('click', () => {
-            currentGroup = 'J';
-            currentGroupDisplay.textContent = 'お立ち台 (濃いグレー)';
-
-            // 他のボタンのアクティブ表示を解除
-            groupButtons.forEach(b => b.classList.remove('active'));
-            specialInputA.classList.add('hidden');
-
-            if (lockBtn) {
-                lockBtn.classList.remove('locked');
-                lockBtn.textContent = 'ロック';
-                seatGrid.classList.remove('is-locked');
-            }
-        });
-    }
-
-    // 3. 座席操作処理
     function handleSeatClick(seatId, isStartOfAction = false) {
-        // ロック状態（currentGroupがnull）の場合は何もしない
-        if (!currentGroup) return;
-
-        // 「中央 (A)」は手動での個別描画・消去を一切禁止する
-        if (currentGroup === 'A') return;
-
-        // 同一ドラッグ内での同一マスの多重処理を徹底防止
+        if (!currentGroup || currentGroup === 'A') return;
         if (seatId === lastProcessedSeatId) return;
 
         const seatEl = document.getElementById(seatId);
         if (!seatEl) return;
 
-        // 現在のマスの色を取得（data-color属性から）
         const currentColor = seatEl.dataset.color || '';
 
-        // ドラッグ開始時に「塗る」か「消す」かを決定
         if (isStartOfAction) {
             isDragging = true;
-            if (currentColor === currentGroup) {
-                dragAction = 'erase';
-            } else if (currentColor === '') {
-                dragAction = 'paint';
-            } else {
-                // 他の色が塗られている場合は何もしない
-                dragAction = 'doNothing';
-            }
+            if (currentColor === currentGroup) dragAction = 'erase';
+            else if (currentColor === '') dragAction = 'paint';
+            else dragAction = 'doNothing';
         }
 
-        // ドラッグ中かつモードが決まっている場合のみ処理
         if (!isDragging || !dragAction || dragAction === 'doNothing') return;
 
         lastProcessedSeatId = seatId;
 
-        if (dragAction === 'erase') {
-            // 消去モード: 現在の色が選択中のグループと同じ場合のみ消す
-            if (currentColor === currentGroup) {
-                updateSeat(seatId, null);
-            }
-        } else if (dragAction === 'paint') {
-            // 描画モード: 現在のマスが空の場合のみ塗る
-            if (currentColor === '') {
-                updateSeat(seatId, currentGroup);
-            }
+        if (dragAction === 'erase' && currentColor === currentGroup) {
+            updateSeat(seatId, null);
+        } else if (dragAction === 'paint' && currentColor === '') {
+            updateSeat(seatId, currentGroup);
         }
     }
 
-    // ロックボタンの処理
-    if (lockBtn) {
-        lockBtn.addEventListener('click', () => {
-
-            // ロック状態に入る
-            currentGroup = null;
-            currentGroupDisplay.textContent = 'ロック中';
-
-            // すべてのグループボタンの選択を解除
-            groupButtons.forEach(b => b.classList.remove('active'));
-
-            // Aグループの入力欄を非表示
-            specialInputA.classList.add('hidden');
-
-            // ロックボタンの表示を変更
-            lockBtn.classList.add('locked');
-            lockBtn.textContent = 'ロック中';
-            seatGrid.classList.add('is-locked');
-        });
-    }
-
-    // すべての座席をクリア
-    function clearAllSeats() {
-        if (!confirm('すべての座席選択を解除してもよろしいですか？（※お立ち台は残ります）')) return;
-
-        // データのリセット
-        seatData = {};
-
-        // デフォルト座席（お立ち台）は復活させる
-        fillDefaultSeats();
-
-        // 表示のリセットと再反映
-        const currentTotalCols = isExpanded ? TOTAL_COLS + COLS_PER_BLOCK : TOTAL_COLS;
-        const blocks = isExpanded ? [0, 1, 2] : [1, 2];
-        
-        for (let r = 1; r <= ROWS; r++) {
-            blocks.forEach(bId => {
-                for (let c = 1; c <= COLS_PER_BLOCK; c++) {
-                    const id = `block${bId}-r${r}-c${c}`;
-                    const seat = document.getElementById(id);
-                    if (seat) {
-                        GROUPS.forEach(g => seat.classList.remove(`group-${g}`));
-                        if (seatData[id]) {
-                            seat.classList.add(`group-${seatData[id]}`);
-                            seat.dataset.color = seatData[id];
-                        } else {
-                            seat.dataset.color = '';
-                        }
-                    }
-                }
-            });
-        }
-
-        updateSummary();
-        requestSave();
-    }
-
-    if (clearAllBtn) {
-        clearAllBtn.addEventListener('click', () => {
-            clearAllSeats();
-        });
-    }
-
-    // 座席の状態を更新
     function updateSeat(seatId, group) {
         const seatEl = document.getElementById(seatId);
         if (!seatEl) return;
-
-        // 既存のクラスを削除
         GROUPS.forEach(g => seatEl.classList.remove(`group-${g}`));
-
-        // 新しいクラスを追加
         if (group) {
             seatEl.classList.add(`group-${group}`);
-            seatEl.dataset.color = group; // data-color属性に色を保存
+            seatEl.dataset.color = group;
             seatData[seatId] = group;
         } else {
-            seatEl.dataset.color = ''; // data-color属性をクリア
+            seatEl.dataset.color = '';
             delete seatData[seatId];
         }
-
         updateSummary();
         requestSave();
     }
 
-    // デフォルト座席（ラベル2段め、3段めの55列、56列）をお立ち台色（J）で埋める
     function fillDefaultSeats() {
-        // 55列: c=11, 56列: c=12 (Block1)
-        // ラベル2段め: r=8, 3段め: r=7
-        const targets = [
-            'block1-r7-c11', 'block1-r7-c12',
-            'block1-r8-c11', 'block1-r8-c12',
-            'block0-r7-c9', 'block0-r7-c10',
-            'block0-r8-c9', 'block0-r8-c10'
-        ];
-        targets.forEach(id => {
-            seatData[id] = 'J';
-        });
+        const targets = ['block1-r7-c11', 'block1-r7-c12', 'block1-r8-c11', 'block1-r8-c12',
+                         'block0-r7-c9', 'block0-r7-c10', 'block0-r8-c9', 'block0-r8-c10'];
+        targets.forEach(id => { seatData[id] = 'J'; });
     }
 
-    // 4. Aグループ専用: 列数入力による一括処理（左右対称対応）
     function runGroupAFill() {
         const colCount = parseInt(colCountInputA.value);
         if (isNaN(colCount) || colCount < 0) return;
-
         const currentTotalCols = isExpanded ? TOTAL_COLS + COLS_PER_BLOCK : TOTAL_COLS;
         const blocks = isExpanded ? [0, 1, 2] : [1, 2];
 
@@ -502,131 +408,118 @@ document.addEventListener('DOMContentLoaded', () => {
             blocks.forEach(bId => {
                 for (let c = 1; c <= COLS_PER_BLOCK; c++) {
                     const seatId = `block${bId}-r${r}-c${c}`;
-                    
-                    // 右端から数えた列番号
                     let effectiveCol = currentTotalCols - (absoluteCol - 1);
-
-                    if (effectiveCol <= colCount) {
-                        updateSeat(seatId, 'A');
-                    } else if (seatData[seatId] === 'A') {
-                        updateSeat(seatId, null);
-                    }
+                    if (effectiveCol <= colCount) updateSeat(seatId, 'A');
+                    else if (seatData[seatId] === 'A') updateSeat(seatId, null);
                     absoluteCol++;
                 }
             });
         }
     }
 
-
-    // 入力確定時（エンターキーまたはフォーカスアウト）に実行
-    colCountInputA.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            runGroupAFill();
-            colCountInputA.blur(); // 入力を確定させる
-        }
-    });
-
-    colCountInputA.addEventListener('blur', () => {
-        runGroupAFill();
-    });
-
-    // 5. リアルタイム集計
     function updateSummary() {
         const counts = {};
         GROUPS.forEach(g => counts[g] = 0);
-
-        // 現在表示されているブロックのみを集計対象にする
         const activeBlocks = isExpanded ? [0, 1, 2] : [1, 2];
 
-        // Object.entries の代わりに互換性の高い Object.keys を使用
-        if (seatData) {
-            Object.keys(seatData).forEach(seatId => {
-                const group = seatData[seatId];
-                // seatId が "block0-..." などの形式であることを確認
-                if (typeof seatId === 'string' && seatId.indexOf('block') === 0) {
-                    const blockNumStr = seatId.split('-')[0].replace('block', '');
-                    const blockId = parseInt(blockNumStr);
-                    
-                    if (!isNaN(blockId) && activeBlocks.indexOf(blockId) !== -1) {
-                        if (counts[group] !== undefined) {
-                            counts[group]++;
-                        }
-                    }
-                }
-            });
-        }
+        Object.keys(seatData).forEach(seatId => {
+            const group = seatData[seatId];
+            const blockId = parseInt(seatId.split('-')[0].replace('block', ''));
+            if (activeBlocks.indexOf(blockId) !== -1 && counts[group] !== undefined) {
+                counts[group]++;
+            }
+        });
 
-        // 各ボタンのカウントを更新
         let totalBH = 0;
         GROUPS.forEach(g => {
             const countEl = document.getElementById(`count-${g}`);
             if (g === 'A') {
-                // 中央の表示にはお立ち台(J)も合算
-                if (countEl) {
-                    countEl.textContent = counts['A'] + counts['J'];
-                }
+                if (countEl) countEl.textContent = counts['A'] + counts['J'];
             } else if (g !== 'J') {
-                // お立ち台以外の通常のグループを表示更新
-                if (countEl) {
-                    countEl.textContent = counts[g];
-                }
-                // 中央(A)とお立ち台(J)以外を合計に加算
+                if (countEl) countEl.textContent = counts[g];
                 totalBH += counts[g];
             }
         });
-
-        // B～H合計を更新
         const totalBHEl = document.getElementById('count-total-BH');
-        if (totalBHEl) {
-            totalBHEl.textContent = totalBH;
-        }
+        if (totalBHEl) totalBHEl.textContent = totalBH;
     }
 
-    // --- スライダーバー関連 ---
+    // イベント設定
+    groupButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            groupButtons.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            currentGroup = btn.dataset.group;
+            currentGroupDisplay.textContent = btn.textContent;
+            lockBtn.classList.remove('locked');
+            lockBtn.textContent = 'ロック';
+            seatGrid.classList.remove('is-locked');
+            if (currentGroup === 'A') {
+                specialInputA.classList.remove('hidden');
+                setTimeout(() => colCountInputA.focus(), 10);
+            } else {
+                specialInputA.classList.add('hidden');
+            }
+        });
+    });
+
+    podiumBtn.addEventListener('click', () => {
+        currentGroup = 'J';
+        currentGroupDisplay.textContent = 'お立ち台 (濃いグレー)';
+        groupButtons.forEach(b => b.classList.remove('active'));
+        specialInputA.classList.add('hidden');
+    });
+
+    expandBtn.addEventListener('click', () => {
+        isExpanded = !isExpanded;
+        expandBtn.textContent = isExpanded ? '縮小' : '拡張';
+        if (!isExpanded) requestSave();
+        createSeats();
+        updateSummary();
+    });
+
+    lockBtn.addEventListener('click', () => {
+        currentGroup = null;
+        currentGroupDisplay.textContent = 'ロック中';
+        groupButtons.forEach(b => b.classList.remove('active'));
+        specialInputA.classList.add('hidden');
+        lockBtn.classList.add('locked');
+        lockBtn.textContent = 'ロック中';
+        seatGrid.classList.add('is-locked');
+    });
+
+    clearAllBtn.addEventListener('click', () => {
+        if (!confirm('すべての座席選択を解除してもよろしいですか？（※お立ち台は残ります）')) return;
+        seatData = {};
+        fillDefaultSeats();
+        renderAllSeats();
+        updateSummary();
+        requestSave();
+    });
+
+    colCountInputA.addEventListener('keydown', (e) => { if (e.key === 'Enter') { runGroupAFill(); colCountInputA.blur(); } });
+    colCountInputA.addEventListener('blur', runGroupAFill);
+
     function updateSliderRange() {
         if (!scrollSlider || !seatMapContainer) return;
-
-        // コンテナのスクロール可能な最大値を設定
         const maxScroll = seatMapContainer.scrollWidth - seatMapContainer.clientWidth;
         scrollSlider.max = maxScroll > 0 ? maxScroll : 0;
         scrollSlider.value = seatMapContainer.scrollLeft;
-        
-        // スクロール不要な場合は非表示にする（オプション）
-        // if (maxScroll <= 0) {
-        //     scrollSlider.parentElement.style.display = 'none';
-        // } else {
-        //     scrollSlider.parentElement.style.display = 'block';
-        // }
     }
 
-    if (scrollSlider) {
-        // スライダー操作時にスクロールを同期
-        scrollSlider.addEventListener('input', () => {
-            if (seatMapContainer) {
-                seatMapContainer.scrollLeft = scrollSlider.value;
-            }
-        });
+    scrollSlider.addEventListener('input', () => { seatMapContainer.scrollLeft = scrollSlider.value; });
+    seatMapContainer.addEventListener('scroll', () => { scrollSlider.value = seatMapContainer.scrollLeft; });
+    window.addEventListener('resize', updateSliderRange);
+
+    function resetDrag() { isDragging = false; lastProcessedSeatId = null; dragAction = null; }
+    window.addEventListener('mouseup', resetDrag);
+    window.addEventListener('touchend', resetDrag);
+
+    // アプリ初期化
+    function initApp() {
+        loadData();
     }
 
-    if (seatMapContainer) {
-        // コンテナを直接スクロール（スワイプ等）した時にスライダーを同期
-        seatMapContainer.addEventListener('scroll', () => {
-            if (scrollSlider) {
-                scrollSlider.value = seatMapContainer.scrollLeft;
-            }
-        });
-
-        // ウィンドウのリサイズ時にも範囲を更新
-        window.addEventListener('resize', updateSliderRange);
-    }
-
-
-    // 初期化
-    async function init() {
-        await loadData(); // データを読み込んでから
-        createSeats();    // 座席を生成（内部でseatDataを参照）
-        updateSummary();
-    }
-
-    init();
+    // 初回実行: 認証チェック
+    checkAuth();
 });
