@@ -94,14 +94,20 @@
     <!-- アクセスコード入力画面 (初期表示) -->
     <div id="access-screen" class="overlay">
         <div class="auth-box">
-            <h2>アクセスコード入力</h2>
-            <div class="input-group">
-                <input type="text" id="access-key-input" placeholder="アクセスコードを入力" maxlength="8">
-                <button id="access-submit-btn">入場</button>
+            <div id="auth-loading-msg" class="hidden">
+                <h2 style="margin-bottom: 0;">セッション確認中...</h2>
+                <div class="sync-saving" style="margin-top: 15px; width: 24px; height: 24px; border-radius: 50%; border: 3px solid #007bff; border-top-color: transparent; animation: spin 0.8s linear infinite; display: inline-block;"></div>
             </div>
-            <p id="access-error" class="error-msg"></p>
-            <div class="auth-footer">
-                <button id="access-admin-btn" class="secondary-btn">管理者ログイン</button>
+            <div id="auth-input-container">
+                <h2>アクセスコード入力</h2>
+                <div class="input-group">
+                    <input type="text" id="access-key-input" placeholder="アクセスコードを入力" maxlength="8">
+                    <button id="access-submit-btn">入場</button>
+                </div>
+                <p id="access-error" class="error-msg"></p>
+                <div class="auth-footer">
+                    <button id="access-admin-btn" class="secondary-btn">管理者ログイン</button>
+                </div>
             </div>
         </div>
     </div>
@@ -136,6 +142,16 @@
                 <div id="generated-key-display" class="key-result hidden">
                     <p>生成されたキー: <strong id="new-key-val"></strong></p>
                     <p>期限: <span id="new-key-expiry"></span></p>
+                </div>
+            </section>
+
+            <hr>
+
+            <section class="admin-section">
+                <h4>現在の有効キーを確認</h4>
+                <button id="fetch-keys-btn">アクセスキー表示</button>
+                <div id="active-keys-list" class="key-list-container hidden">
+                    <!-- JSで一覧を表示 -->
                 </div>
             </section>
 
