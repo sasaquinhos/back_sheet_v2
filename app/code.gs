@@ -1,83 +1,158 @@
 // ========================================
-// ProjectE 専用 Google Apps Script
-// ========================================
-// 重要: このファイルは projectE 専用です。
-// projectD とは完全に独立したデータ管理を行います。
+// ProjectE 専用 Google Apps Script (セキュリティ強化版)
 // ========================================
 
-// projectE 専用のスプレッドシートID
-// 名称: 「バック側座席管理シート」
-// TODO: Google スプレッドシートを作成後、ここにIDを設定してください
 const PROJECTE_SPREADSHEET_ID = "1JAIeX8NipBaXWh4waRRoVzjDgXrZlfopF9G81mDh1-E";
+
+// 初期管理者パスワード (初回のみ使用。管理者画面から変更可能)
+const INITIAL_ADMIN_PASS = "admin1234";
+
+/**
+ * 初期設定: スクリプトプロパティの初期化
+ */
+function initProperties() {
+  const props = PropertiesService.getScriptProperties();
+  if (!props.getProperty("ADMIN_PASS")) {
+    props.setProperty("ADMIN_PASS", INITIAL_ADMIN_PASS);
+  }
+}
 
 /**
  * GET リクエスト処理
- * 座席データを取得して返す
+ * 主に読み取り系アクション (データ取得、キー検証)
  */
-function doGet() {
+function doGet(e) {
+  initProperties();
+  const action = e.parameter.action;
+  const accessKey = e.parameter.accessKey;
+
   try {
-    if (PROJECTE_SPREADSHEET_ID === "YOUR_PROJECTE_SPREADSHEET_ID_HERE") {
-      throw new Error("スプレッドシートIDが設定されていません。code.gs の10行目を確認してください。");
+    // 1. アクセスキーの検証アクション
+    if (action === "verifyKey") {
+      const isValid = isValidAccessKey(accessKey);
+      return createJsonResponse({ status: isValid ? "success" : "error", message: isValid ? "有効なキーです" : "無効または期限切れのキーです" });
     }
-    const spreadsheet = SpreadsheetApp.openById(PROJECTE_SPREADSHEET_ID);
-    const sheet = spreadsheet.getSheets()[0]; // 最初のシート
-    const data = sheet.getRange(1, 1).getValue();
-    
-    const response = {
-      status: "success",
-      data: data ? JSON.parse(data) : {}
-    };
-    
-    return ContentService.createTextOutput(JSON.stringify(response))
-      .setMimeType(ContentService.MimeType.JSON);
-      
+
+    // 2. 座席データの取得 (有効なキーが必要)
+    if (action === "getSeatData") {
+      if (!isValidAccessKey(accessKey)) {
+        return createJsonResponse({ status: "error", message: "認証が必要です", authError: true });
+      }
+      const spreadsheet = SpreadsheetApp.openById(PROJECTE_SPREADSHEET_ID);
+      const sheet = spreadsheet.getSheets()[0];
+      const data = sheet.getRange(1, 1).getValue();
+      return createJsonResponse({ status: "success", data: data ? JSON.parse(data) : {} });
+    }
+
+    return createJsonResponse({ status: "error", message: "不明なアクションです" });
+
   } catch (error) {
-    console.error("GET Error: " + error.toString());
-    const response = {
-      status: "error",
-      message: error.toString()
-    };
-    return ContentService.createTextOutput(JSON.stringify(response))
-      .setMimeType(ContentService.MimeType.JSON);
+    return createJsonResponse({ status: "error", message: error.toString() });
   }
 }
 
 /**
  * POST リクエスト処理
- * 座席データを保存する
+ * 主に書き込み系アクション (データ保存、管理者ログイン、キー生成)
  */
 function doPost(e) {
+  initProperties();
+  
+  let rawData = e.postData.contents;
+  if (!rawData) return createJsonResponse({ status: "error", message: "データが空です" });
+  
+  const payload = JSON.parse(rawData);
+  const action = payload.action;
+
   try {
-    if (PROJECTE_SPREADSHEET_ID === "YOUR_PROJECTE_SPREADSHEET_ID_HERE") {
-      throw new Error("スプレッドシートIDが設定されていません。");
+    // 1. 座席データの保存 (有効なキーが必要)
+    if (action === "saveSeatData") {
+      if (!isValidAccessKey(payload.accessKey)) {
+        return createJsonResponse({ status: "error", message: "認証が必要です", authError: true });
+      }
+      const spreadsheet = SpreadsheetApp.openById(PROJECTE_SPREADSHEET_ID);
+      const sheet = spreadsheet.getSheets()[0];
+      sheet.getRange(1, 1).setValue(JSON.stringify(payload.data));
+      return createJsonResponse({ status: "success", message: "保存しました" });
     }
-    const spreadsheet = SpreadsheetApp.openById(PROJECTE_SPREADSHEET_ID);
-    const sheet = spreadsheet.getSheets()[0];
-    
-    let rawData = e.postData.contents;
-    if (!rawData) {
-       throw new Error("受信データが空です。");
+
+    // 2. 管理者ログイン
+    if (action === "adminLogin") {
+      const props = PropertiesService.getScriptProperties();
+      const isAdmin = (payload.adminPassword === props.getProperty("ADMIN_PASS"));
+      return createJsonResponse({ status: isAdmin ? "success" : "error", message: isAdmin ? "ログイン成功" : "パスワードが違います" });
     }
-    
-    // データのバリデーション（JSONとして正しいか）
-    const postData = JSON.parse(rawData);
-    sheet.getRange(1, 1).setValue(JSON.stringify(postData));
-    
-    const response = {
-      status: "success",
-      message: "データを保存しました"
-    };
-    
-    return ContentService.createTextOutput(JSON.stringify(response))
-      .setMimeType(ContentService.MimeType.JSON);
+
+    // 3. アクセスキー生成 (管理者パスワードが必要)
+    if (action === "generateKey") {
+      if (!isAdmin(payload.adminPassword)) return createJsonResponse({ status: "error", message: "権限がありません" });
       
+      const newKey = Math.random().toString(36).substring(2, 10).toUpperCase(); // 8文字のランダムキー
+      const hours = parseInt(payload.hours || 0);
+      const mins = parseInt(payload.mins || 0);
+      const expiry = new Date().getTime() + (hours * 60 * 60 * 1000) + (mins * 60 * 1000);
+      
+      saveAccessKey(newKey, expiry);
+      return createJsonResponse({ status: "success", key: newKey, expiry: new Date(expiry).toLocaleString() });
+    }
+
+    // 4. 管理者パスワード変更
+    if (action === "updateAdminPass") {
+      if (!isAdmin(payload.oldPassword)) return createJsonResponse({ status: "error", message: "現在のパスワードが違います" });
+      PropertiesService.getScriptProperties().setProperty("ADMIN_PASS", payload.newPassword);
+      return createJsonResponse({ status: "success", message: "パスワードを更新しました" });
+    }
+
+    return createJsonResponse({ status: "error", message: "不明なアクションです" });
+
   } catch (error) {
-    console.error("POST Error: " + error.toString());
-    const response = {
-      status: "error",
-      message: error.toString()
-    };
-    return ContentService.createTextOutput(JSON.stringify(response))
-      .setMimeType(ContentService.MimeType.JSON);
+    return createJsonResponse({ status: "error", message: error.toString() });
   }
+}
+
+/**
+ * アクセスキーの有効性チェック
+ */
+function isValidAccessKey(key) {
+  if (!key) return false;
+  const props = PropertiesService.getScriptProperties();
+  const keysJson = props.getProperty("ACCESS_KEYS");
+  if (!keysJson) return false;
+  
+  const keys = JSON.parse(keysJson);
+  const expiry = keys[key];
+  if (!expiry) return false;
+  
+  // 期限チェック
+  if (new Date().getTime() > expiry) {
+    delete keys[key];
+    props.setProperty("ACCESS_KEYS", JSON.stringify(keys));
+    return false;
+  }
+  return true;
+}
+
+/**
+ * 管理者チェック
+ */
+function isAdmin(pass) {
+  return pass === PropertiesService.getScriptProperties().getProperty("ADMIN_PASS");
+}
+
+/**
+ * アクセスキーの保存
+ */
+function saveAccessKey(key, expiry) {
+  const props = PropertiesService.getScriptProperties();
+  let keys = JSON.parse(props.getProperty("ACCESS_KEYS") || "{}");
+  keys[key] = expiry;
+  props.setProperty("ACCESS_KEYS", JSON.stringify(keys));
+}
+
+/**
+ * JSON レスポンスの生成
+ */
+function createJsonResponse(obj) {
+  return ContentService.createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
 }
