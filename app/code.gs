@@ -29,8 +29,30 @@ function doGet(e) {
   try {
     // 1. アクセスキーの検証アクション
     if (action === "verifyKey") {
-      const isValid = isValidAccessKey(accessKey);
-      return createJsonResponse({ status: isValid ? "success" : "error", message: isValid ? "有効なキーです" : "無効または期限切れのキーです" });
+      const props = PropertiesService.getScriptProperties();
+      const keys = JSON.parse(props.getProperty("ACCESS_KEYS") || "{}");
+      const now = new Date().getTime();
+      
+      // システム内に有効なキーが存在するかチェック
+      let hasActiveKey = false;
+      for (const k in keys) {
+        if (keys[k] > now) {
+          hasActiveKey = true;
+          break;
+        }
+      }
+
+      // システムにキーがない場合
+      if (!hasActiveKey) {
+        return createJsonResponse({ status: "error", message: "アクセスキーを入力してください" });
+      }
+
+      // キーが入力されていない、または間違っている/期限切れの場合
+      if (!accessKey || !keys[accessKey] || keys[accessKey] <= now) {
+        return createJsonResponse({ status: "error", message: "無効または期限切れのキーです" });
+      }
+
+      return createJsonResponse({ status: "success", message: "有効なキーです" });
     }
 
     // 2. 座席データの取得 (有効なキーが必要)
@@ -103,6 +125,22 @@ function doPost(e) {
       return createJsonResponse({ status: "success", message: "パスワードを更新しました" });
     }
 
+    // 5. 現在有効なキーの取得 (管理者パスワードが必要)
+    if (action === "getAccessKeys") {
+      if (!isAdmin(payload.adminPassword)) return createJsonResponse({ status: "error", message: "権限がありません" });
+      const props = PropertiesService.getScriptProperties();
+      const keysJson = props.getProperty("ACCESS_KEYS");
+      const keys = keysJson ? JSON.parse(keysJson) : {};
+      
+      // 有効なものだけ抽出
+      const now = new Date().getTime();
+      const activeKeys = {};
+      for (const k in keys) {
+        if (keys[k] > now) activeKeys[k] = keys[k];
+      }
+      return createJsonResponse({ status: "success", keys: activeKeys });
+    }
+
     return createJsonResponse({ status: "error", message: "不明なアクションです" });
 
   } catch (error) {
@@ -144,7 +182,8 @@ function isAdmin(pass) {
  */
 function saveAccessKey(key, expiry) {
   const props = PropertiesService.getScriptProperties();
-  let keys = JSON.parse(props.getProperty("ACCESS_KEYS") || "{}");
+  // 常に最新1件にするため、空のオブジェクトから開始
+  let keys = {}; 
   keys[key] = expiry;
   props.setProperty("ACCESS_KEYS", JSON.stringify(keys));
 }
