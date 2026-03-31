@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let lastX = null;
     let lastY = null;
     let isExpanded = false;
+    let cachedAdminPass = null; // セッション中の管理者パスワード一時保持
 
     // --- DOM要素 ---
     const mainContent = document.getElementById('main-content');
@@ -50,9 +51,11 @@ document.addEventListener('DOMContentLoaded', () => {
     const newKeyExpiry = document.getElementById('new-key-expiry');
     const updatePassBtn = document.getElementById('update-pass-btn');
     const newAdminPass = document.getElementById('new-admin-pass');
+    const fetchKeysBtn = document.getElementById('fetch-keys-btn');
+    const activeKeysList = document.getElementById('active-keys-list');
 
     // --- API設定 ---
-    const API_URL = "https://script.google.com/macros/s/AKfycbzHISB2XfHMVHyROwBlr2gD9Dkf8ky0dyHes0HXSC9u5vKq4ERgAVgOYF_Oz6u_wCesmw/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbw8yGFzGmI0tip7jB4knIet7_yz2lVEX_9MQQW7O3N-vcyjTEw5kRBOtNwDIAWqkIZQ0A/exec";
 
     // --- 0. 認証と状態管理 ---
     function getStoredKey() {
@@ -65,9 +68,12 @@ document.addEventListener('DOMContentLoaded', () => {
     async function checkAuth() {
         const key = getStoredKey();
         if (!key) {
-            showAccessScreen();
+            showAccessScreen("アクセスキーを入力してください");
             return;
         }
+
+        // セッション確認中の表示
+        showAccessScreen("", true);
 
         try {
             const res = await fetch(`${API_URL}?action=verifyKey&accessKey=${key}`);
@@ -84,10 +90,21 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function showAccessScreen(error = "") {
+    function showAccessScreen(error = "", isLoading = false) {
         mainContent.classList.add('hidden');
         accessScreen.classList.remove('hidden');
-        if (error) accessError.textContent = error;
+        
+        const loadingMsg = document.getElementById('auth-loading-msg');
+        const inputContainer = document.getElementById('auth-input-container');
+        
+        if (isLoading) {
+            loadingMsg.classList.remove('hidden');
+            inputContainer.classList.add('hidden');
+        } else {
+            loadingMsg.classList.add('hidden');
+            inputContainer.classList.remove('hidden');
+            if (error) accessError.textContent = error;
+        }
     }
 
     function showMainContent() {
@@ -137,6 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const json = await res.json();
             if (json.status === "success") {
+                cachedAdminPass = pass; // パスワードを一時保持
                 adminLoginModal.classList.add('hidden');
                 adminPanel.classList.remove('hidden');
                 adminPassInput.value = "";
@@ -153,7 +171,7 @@ document.addEventListener('DOMContentLoaded', () => {
     adminPanelClose.addEventListener('click', () => adminPanel.classList.add('hidden'));
 
     generateKeyBtn.addEventListener('click', async () => {
-        const pass = adminPassInput.value || prompt("管理者パスワードを再入力してください");
+        const pass = cachedAdminPass || adminPassInput.value || prompt("管理者パスワードを再入力してください");
         if (!pass) return;
         try {
             const res = await fetch(API_URL, {
@@ -167,9 +185,12 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const json = await res.json();
             if (json.status === "success") {
+                cachedAdminPass = pass;
                 generatedKeyDisplay.classList.remove('hidden');
                 newKeyVal.textContent = json.key;
                 newKeyExpiry.textContent = json.expiry;
+                // 生成後は一覧も隠すか、あるいは再取得して最新を表示
+                activeKeysList.classList.add('hidden');
             } else {
                 alert(json.message);
             }
@@ -177,6 +198,66 @@ document.addEventListener('DOMContentLoaded', () => {
             alert("生成に失敗しました");
         }
     });
+
+    // キー一覧の取得・トグル
+    fetchKeysBtn.addEventListener('click', async () => {
+        // すでに表示されている場合は非表示にする (トグル)
+        if (!activeKeysList.classList.contains('hidden')) {
+            activeKeysList.classList.add('hidden');
+            fetchKeysBtn.textContent = "アクセスキー表示";
+            return;
+        }
+
+        const pass = cachedAdminPass || prompt("管理者パスワードを入力してください");
+        if (!pass) return;
+
+        fetchKeysBtn.disabled = true;
+        fetchKeysBtn.textContent = "取得中...";
+
+        try {
+            const res = await fetch(API_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "getAccessKeys", adminPassword: pass })
+            });
+            const json = await res.json();
+            if (json.status === "success") {
+                cachedAdminPass = pass;
+                renderActiveKeys(json.keys);
+                fetchKeysBtn.textContent = "アクセスキー非表示";
+            } else {
+                alert(json.message);
+                fetchKeysBtn.textContent = "アクセスキー表示";
+            }
+        } catch (e) {
+            alert("取得に失敗しました");
+            fetchKeysBtn.textContent = "アクセスキー表示";
+        } finally {
+            fetchKeysBtn.disabled = false;
+        }
+    });
+
+    function renderActiveKeys(keys) {
+        activeKeysList.innerHTML = '';
+        activeKeysList.classList.remove('hidden');
+        
+        const keyEntries = Object.entries(keys);
+        if (keyEntries.length === 0) {
+            activeKeysList.innerHTML = '<p style="font-size:0.9rem; color:#888;">有効なキーはありません</p>';
+            return;
+        }
+
+        keyEntries.forEach(([key, expiry]) => {
+            const item = document.createElement('div');
+            item.className = 'key-item';
+            
+            const expiryDate = new Date(expiry);
+            item.innerHTML = `
+                <span class="key-code">${key}</span>
+                <span class="key-expiry">期限: ${expiryDate.toLocaleString()}</span>
+            `;
+            activeKeysList.appendChild(item);
+        });
+    }
 
     updatePassBtn.addEventListener('click', async () => {
         const pass = prompt("現在のパスワードを入力してください");
