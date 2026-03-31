@@ -63,26 +63,34 @@ header {
     transform: translateY(-50%);
     padding: 6px 16px;
     font-size: 13px;
-    background: #444;
-    color: #fff;
-    border: 1px solid #666;
+    background: transparent;
+    color: #333;
+    border: 1px solid #333;
     border-radius: 4px;
     cursor: pointer;
-    transition: background 0.2s;
+    font-weight: bold;
+    transition: all 0.2s;
 }
 
 #admin-open-btn:hover {
-    background: #555;
+    background: #f0f0f0;
 }
 
 @media (max-width: 768px) {
     .header-container {
-        flex-direction: column;
-        gap: 10px;
+        justify-content: flex-start;
+        gap: 15px;
+    }
+    .header-container h1 {
+        font-size: 1.1rem;
+        flex: 1;
+        text-align: left;
     }
     #admin-open-btn {
         position: static;
         transform: none;
+        padding: 4px 10px;
+        font-size: 11px;
     }
 }
 
@@ -522,6 +530,10 @@ main {
     background: #fdedec;
 }
 
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
 @keyframes pulse {
     0% {
         opacity: 0.6;
@@ -835,6 +847,14 @@ main {
     border-radius: 10px;
     width: 90%;
     max-width: 450px;
+    color: #eee;
+}
+
+.modal-content h3 {
+    color: #fff;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid #444;
+    padding-bottom: 0.5rem;
 }
 
 .modal-buttons {
@@ -863,13 +883,47 @@ main {
     color: #4dabff; /* 青色を少し明るくして視認性向上 */
 }
 
-.timer-inputs {
-    margin-bottom: 1rem;
+.timer-inputs label {
+    color: #eee;
+    font-size: 0.95rem;
 }
 
 .timer-inputs input {
     width: 60px !important;
     text-align: center;
+    margin: 0 5px;
+}
+
+.key-list-container {
+    margin-top: 1rem;
+    padding: 1rem;
+    background: #1a1a1a;
+    border-radius: 6px;
+    border: 1px solid #444;
+}
+
+.key-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid #333;
+}
+
+.key-item:last-child {
+    border-bottom: none;
+}
+
+.key-item .key-code {
+    font-family: monospace;
+    font-size: 1.1rem;
+    color: #28a745;
+    font-weight: bold;
+}
+
+.key-item .key-expiry {
+    font-size: 0.85rem;
+    color: #aaa;
 }
 
 .key-result {
