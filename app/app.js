@@ -36,6 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const accessError = document.getElementById('access-error');
     const accessAdminBtn = document.getElementById('access-admin-btn');
     const adminLoginModal = document.getElementById('admin-login-modal');
+    const adminLoginInputs = document.getElementById('admin-login-inputs');
+    const adminAuthLoadingMsg = document.getElementById('admin-auth-loading-msg');
     const adminPassInput = document.getElementById('admin-pass-input');
     const adminLoginSubmit = document.getElementById('admin-login-submit');
     const adminLoginCancel = document.getElementById('admin-login-cancel');
@@ -112,12 +114,26 @@ document.addEventListener('DOMContentLoaded', () => {
         mainContent.classList.remove('hidden');
     }
 
+    function setButtonLoading(btn, isLoading, loadingText = "実行中...", originalText = null) {
+        if (!btn) return;
+        if (isLoading) {
+            btn.dataset.originalText = originalText || btn.textContent;
+            btn.disabled = true;
+            btn.textContent = loadingText;
+        } else {
+            btn.disabled = false;
+            btn.textContent = btn.dataset.originalText || btn.textContent;
+        }
+    }
+
     // 認証ボタン
     accessSubmitBtn.addEventListener('click', async () => {
         const key = accessKeyInput.value.trim();
         if (!key) return;
-        accessSubmitBtn.disabled = true;
-        accessError.textContent = "検証中...";
+        
+        setButtonLoading(accessSubmitBtn, true, "検証中...");
+        accessError.textContent = "";
+
         try {
             const res = await fetch(`${API_URL}?action=verifyKey&accessKey=${key}`);
             const json = await res.json();
@@ -131,7 +147,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             accessError.textContent = "接続に失敗しました";
         } finally {
-            accessSubmitBtn.disabled = false;
+            setButtonLoading(accessSubmitBtn, false);
         }
     });
 
@@ -146,7 +162,12 @@ document.addEventListener('DOMContentLoaded', () => {
     adminLoginSubmit.addEventListener('click', async () => {
         const pass = adminPassInput.value;
         if (!pass) return;
-        adminLoginSubmit.disabled = true;
+
+        // ログイン実行中の表示
+        adminLoginInputs.classList.add('hidden');
+        adminAuthLoadingMsg.classList.remove('hidden');
+        adminLoginError.textContent = "";
+
         try {
             const res = await fetch(API_URL, {
                 method: "POST",
@@ -154,7 +175,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             const json = await res.json();
             if (json.status === "success") {
-                cachedAdminPass = pass; // パスワードを一時保持
+                cachedAdminPass = pass;
                 adminLoginModal.classList.add('hidden');
                 adminPanel.classList.remove('hidden');
                 adminPassInput.value = "";
@@ -164,7 +185,8 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             adminLoginError.textContent = "ログインに失敗しました";
         } finally {
-            adminLoginSubmit.disabled = false;
+            adminLoginInputs.classList.remove('hidden');
+            adminAuthLoadingMsg.classList.add('hidden');
         }
     });
 
@@ -173,6 +195,9 @@ document.addEventListener('DOMContentLoaded', () => {
     generateKeyBtn.addEventListener('click', async () => {
         const pass = cachedAdminPass || adminPassInput.value || prompt("管理者パスワードを再入力してください");
         if (!pass) return;
+        
+        setButtonLoading(generateKeyBtn, true, "生成中...");
+
         try {
             const res = await fetch(API_URL, {
                 method: "POST",
@@ -189,13 +214,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 generatedKeyDisplay.classList.remove('hidden');
                 newKeyVal.textContent = json.key;
                 newKeyExpiry.textContent = json.expiry;
-                // 生成後は一覧も隠すか、あるいは再取得して最新を表示
                 activeKeysList.classList.add('hidden');
             } else {
                 alert(json.message);
             }
         } catch (e) {
             alert("生成に失敗しました");
+        } finally {
+            setButtonLoading(generateKeyBtn, false);
         }
     });
 
@@ -211,8 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const pass = cachedAdminPass || prompt("管理者パスワードを入力してください");
         if (!pass) return;
 
-        fetchKeysBtn.disabled = true;
-        fetchKeysBtn.textContent = "取得中...";
+        setButtonLoading(fetchKeysBtn, true, "取得中...");
 
         try {
             const res = await fetch(API_URL, {
@@ -226,13 +251,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 fetchKeysBtn.textContent = "アクセスキー非表示";
             } else {
                 alert(json.message);
-                fetchKeysBtn.textContent = "アクセスキー表示";
+                setButtonLoading(fetchKeysBtn, false, "", "アクセスキー表示");
             }
         } catch (e) {
             alert("取得に失敗しました");
-            fetchKeysBtn.textContent = "アクセスキー表示";
+            setButtonLoading(fetchKeysBtn, false, "", "アクセスキー表示");
         } finally {
-            fetchKeysBtn.disabled = false;
+            if (activeKeysList.classList.contains('hidden')) {
+                setButtonLoading(fetchKeysBtn, false, "", "アクセスキー表示");
+            } else {
+                fetchKeysBtn.disabled = false;
+            }
         }
     });
 
@@ -261,8 +290,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updatePassBtn.addEventListener('click', async () => {
         const pass = prompt("現在のパスワードを入力してください");
+        if (!pass) return;
         const next = newAdminPass.value;
-        if (!pass || !next) return;
+        if (!next) return;
+
+        setButtonLoading(updatePassBtn, true, "更新中...");
+
         try {
             const res = await fetch(API_URL, {
                 method: "POST",
@@ -273,6 +306,8 @@ document.addEventListener('DOMContentLoaded', () => {
             if (json.status === "success") newAdminPass.value = "";
         } catch (e) {
             alert("更新に失敗しました");
+        } finally {
+            setButtonLoading(updatePassBtn, false);
         }
     });
 
