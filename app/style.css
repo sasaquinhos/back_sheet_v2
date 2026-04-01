@@ -81,11 +81,13 @@ header {
 }
 
 #admin-open-btn, #podium-btn, #clear-all-btn, #expand-btn, #lock-btn {
-    min-width: 80px;
     text-align: center;
     box-sizing: border-box;
     font-size: 12px;
     padding: 4px 12px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    min-width: auto;
 }
 
 #admin-open-btn {
@@ -114,7 +116,7 @@ header {
     }
     #admin-open-btn, #podium-btn, #clear-all-btn, #expand-btn, #lock-btn {
         padding: 4px 10px;
-        min-width: 75px;
+        min-width: auto;
         font-size: 11px;
     }
     .header-right-actions {
