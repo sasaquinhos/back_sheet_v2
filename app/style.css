@@ -923,7 +923,7 @@ main {
     margin: 0 5px;
 }
 
-.key-list-container {
+.code-list-container {
     margin-top: 1rem;
     padding: 1rem;
     background: #1a1a1a;
@@ -931,7 +931,7 @@ main {
     border: 1px solid #444;
 }
 
-.key-item {
+.code-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -939,23 +939,23 @@ main {
     border-bottom: 1px solid #333;
 }
 
-.key-item:last-child {
+.code-item:last-child {
     border-bottom: none;
 }
 
-.key-item .key-code {
+.code-item .code-value {
     font-family: monospace;
     font-size: 1.1rem;
     color: #28a745;
     font-weight: bold;
 }
 
-.key-item .key-expiry {
+.code-item .code-expiry {
     font-size: 0.85rem;
     color: #aaa;
 }
 
-.key-result {
+.code-result {
     margin-top: 1rem;
     padding: 1rem;
     background: #1a1a1a;
@@ -963,7 +963,7 @@ main {
     border-left: 4px solid #28a745;
 }
 
-.key-result strong {
+.code-result strong {
     font-size: 1.2rem;
     color: #28a745;
     letter-spacing: 2px;
