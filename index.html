@@ -105,9 +105,9 @@
                 <div class="sync-saving" style="margin-top: 15px; width: 24px; height: 24px; border-radius: 50%; border: 3px solid #007bff; border-top-color: transparent; animation: spin 0.8s linear infinite; display: inline-block;"></div>
             </div>
             <div id="auth-input-container">
-                <h2>アクセスコード入力 (v2)</h2>
+                <h2>アクセスコード入力</h2>
                 <div class="input-group">
-                    <input type="text" id="access-key-input" placeholder="アクセスコードを入力" maxlength="8">
+                    <input type="text" id="access-code-input" placeholder="アクセスコードを入力" maxlength="8">
                     <button id="access-submit-btn">入場</button>
                 </div>
                 <p id="access-error" class="error-msg"></p>
@@ -143,26 +143,26 @@
             <h3>管理者設定</h3>
             
             <section class="admin-section">
-                <h4>アクセスキー生成</h4>
+                <h4>アクセスコード生成</h4>
                 <div class="timer-inputs">
                     <label>有効時間: 
-                        <input type="number" id="key-hours" value="1" min="0" max="24"> 時間
-                        <input type="number" id="key-mins" value="0" min="0" max="59"> 分
+                        <input type="number" id="code-hours" value="1" min="0" max="24"> 時間
+                        <input type="number" id="code-mins" value="0" min="0" max="59"> 分
                     </label>
                 </div>
-                <button id="generate-key-btn">キーを生成</button>
-                <div id="generated-key-display" class="key-result hidden">
-                    <p>生成されたキー: <strong id="new-key-val"></strong></p>
-                    <p>期限: <span id="new-key-expiry"></span></p>
+                <button id="generate-code-btn">コードを生成</button>
+                <div id="generated-code-display" class="code-result hidden">
+                    <p>生成されたコード: <strong id="new-code-val"></strong></p>
+                    <p>期限: <span id="new-code-expiry"></span></p>
                 </div>
             </section>
 
             <hr>
 
             <section class="admin-section">
-                <h4>現在の有効キーを確認</h4>
-                <button id="fetch-keys-btn">アクセスキー表示</button>
-                <div id="active-keys-list" class="key-list-container hidden">
+                <h4>現在の有効コードを確認</h4>
+                <button id="fetch-codes-btn">アクセスコード表示</button>
+                <div id="active-codes-list" class="code-list-container hidden">
                     <!-- JSで一覧を表示 -->
                 </div>
             </section>
