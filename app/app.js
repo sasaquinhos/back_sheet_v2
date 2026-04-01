@@ -31,7 +31,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const scrollSlider = document.getElementById('scroll-slider');
 
     // 認証・管理者関連
-    const accessKeyInput = document.getElementById('access-key-input');
+    const accessCodeInput = document.getElementById('access-code-input');
     const accessSubmitBtn = document.getElementById('access-submit-btn');
     const accessError = document.getElementById('access-error');
     const accessAdminBtn = document.getElementById('access-admin-btn');
@@ -45,32 +45,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const adminOpenBtn = document.getElementById('admin-open-btn');
     const adminPanel = document.getElementById('admin-panel');
     const adminPanelClose = document.getElementById('admin-panel-close');
-    const generateKeyBtn = document.getElementById('generate-key-btn');
-    const keyHoursInput = document.getElementById('key-hours');
-    const keyMinsInput = document.getElementById('key-mins');
-    const generatedKeyDisplay = document.getElementById('generated-key-display');
-    const newKeyVal = document.getElementById('new-key-val');
-    const newKeyExpiry = document.getElementById('new-key-expiry');
+    const generateCodeBtn = document.getElementById('generate-code-btn');
+    const codeHoursInput = document.getElementById('code-hours');
+    const codeMinsInput = document.getElementById('code-mins');
+    const generatedCodeDisplay = document.getElementById('generated-code-display');
+    const newCodeVal = document.getElementById('new-code-val');
+    const newCodeExpiry = document.getElementById('new-code-expiry');
     const updatePassBtn = document.getElementById('update-pass-btn');
     const newAdminPass = document.getElementById('new-admin-pass');
-    const fetchKeysBtn = document.getElementById('fetch-keys-btn');
-    const activeKeysList = document.getElementById('active-keys-list');
+    const fetchCodesBtn = document.getElementById('fetch-codes-btn');
+    const activeCodesList = document.getElementById('active-codes-list');
 
     // --- API設定 ---
-    const API_URL = "https://script.google.com/macros/s/AKfycbw8yGFzGmI0tip7jB4knIet7_yz2lVEX_9MQQW7O3N-vcyjTEw5kRBOtNwDIAWqkIZQ0A/exec";
+    const API_URL = "https://script.google.com/macros/s/AKfycbx9o-OfprySFbxLLQPlZChXHY_KeD1QOfWumtBjia6Y593o46t9Y0-Dd6SQoRSw3921/exec";
 
     // --- 0. 認証と状態管理 ---
-    function getStoredKey() {
-        return localStorage.getItem('projecte_access_key');
+    function getStoredCode() {
+        return localStorage.getItem('projecte_access_code');
     }
-    function saveStoredKey(key) {
-        localStorage.setItem('projecte_access_key', key);
+    function saveStoredCode(code) {
+        localStorage.setItem('projecte_access_code', code);
     }
 
     async function checkAuth() {
-        const key = getStoredKey();
-        if (!key) {
-            showAccessScreen("アクセスキーを入力してください");
+        const code = getStoredCode();
+        if (!code) {
+            showAccessScreen("アクセスコードを入力してください");
             return;
         }
 
@@ -78,7 +78,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showAccessScreen("", true);
 
         try {
-            const res = await fetch(`${API_URL}?action=verifyKey&accessKey=${key}`);
+            const res = await fetch(`${API_URL}?action=verifyCode&accessCode=${code}`);
             const json = await res.json();
             if (json.status === "success") {
                 showMainContent();
@@ -128,17 +128,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 認証ボタン
     accessSubmitBtn.addEventListener('click', async () => {
-        const key = accessKeyInput.value.trim();
-        if (!key) return;
+        const code = accessCodeInput.value.trim();
+        if (!code) return;
         
         setButtonLoading(accessSubmitBtn, true, "検証中...");
         accessError.textContent = "";
 
         try {
-            const res = await fetch(`${API_URL}?action=verifyKey&accessKey=${key}`);
+            const res = await fetch(`${API_URL}?action=verifyCode&accessCode=${code}`);
             const json = await res.json();
             if (json.status === "success") {
-                saveStoredKey(key);
+                saveStoredCode(code);
                 showMainContent();
                 initApp();
             } else {
@@ -192,99 +192,99 @@ document.addEventListener('DOMContentLoaded', () => {
 
     adminPanelClose.addEventListener('click', () => adminPanel.classList.add('hidden'));
 
-    generateKeyBtn.addEventListener('click', async () => {
+    generateCodeBtn.addEventListener('click', async () => {
         const pass = cachedAdminPass || adminPassInput.value || prompt("管理者パスワードを再入力してください");
         if (!pass) return;
         
-        setButtonLoading(generateKeyBtn, true, "生成中...");
+        setButtonLoading(generateCodeBtn, true, "生成中...");
 
         try {
             const res = await fetch(API_URL, {
                 method: "POST",
                 body: JSON.stringify({ 
-                    action: "generateKey", 
+                    action: "generateCode", 
                     adminPassword: pass,
-                    hours: keyHoursInput.value,
-                    mins: keyMinsInput.value
+                    hours: codeHoursInput.value,
+                    mins: codeMinsInput.value
                 })
             });
             const json = await res.json();
             if (json.status === "success") {
                 cachedAdminPass = pass;
-                generatedKeyDisplay.classList.remove('hidden');
-                newKeyVal.textContent = json.key;
-                newKeyExpiry.textContent = json.expiry;
-                activeKeysList.classList.add('hidden');
+                generatedCodeDisplay.classList.remove('hidden');
+                newCodeVal.textContent = json.code;
+                newCodeExpiry.textContent = json.expiry;
+                activeCodesList.classList.add('hidden');
             } else {
                 alert(json.message);
             }
         } catch (e) {
             alert("生成に失敗しました");
         } finally {
-            setButtonLoading(generateKeyBtn, false);
+            setButtonLoading(generateCodeBtn, false);
         }
     });
 
-    // キー一覧の取得・トグル
-    fetchKeysBtn.addEventListener('click', async () => {
+    // コード一覧の取得・トグル
+    fetchCodesBtn.addEventListener('click', async () => {
         // すでに表示されている場合は非表示にする (トグル)
-        if (!activeKeysList.classList.contains('hidden')) {
-            activeKeysList.classList.add('hidden');
-            fetchKeysBtn.textContent = "アクセスキー表示";
+        if (!activeCodesList.classList.contains('hidden')) {
+            activeCodesList.classList.add('hidden');
+            fetchCodesBtn.textContent = "アクセスコード表示";
             return;
         }
 
         const pass = cachedAdminPass || prompt("管理者パスワードを入力してください");
         if (!pass) return;
 
-        setButtonLoading(fetchKeysBtn, true, "取得中...");
+        setButtonLoading(fetchCodesBtn, true, "取得中...");
 
         try {
             const res = await fetch(API_URL, {
                 method: "POST",
-                body: JSON.stringify({ action: "getAccessKeys", adminPassword: pass })
+                body: JSON.stringify({ action: "getAccessCodes", adminPassword: pass })
             });
             const json = await res.json();
             if (json.status === "success") {
                 cachedAdminPass = pass;
-                renderActiveKeys(json.keys);
-                fetchKeysBtn.textContent = "アクセスキー非表示";
+                renderActiveCodes(json.codes);
+                fetchCodesBtn.textContent = "アクセスコード非表示";
             } else {
                 alert(json.message);
-                setButtonLoading(fetchKeysBtn, false, "", "アクセスキー表示");
+                setButtonLoading(fetchCodesBtn, false, "", "アクセスコード表示");
             }
         } catch (e) {
             alert("取得に失敗しました");
-            setButtonLoading(fetchKeysBtn, false, "", "アクセスキー表示");
+            setButtonLoading(fetchCodesBtn, false, "", "アクセスコード表示");
         } finally {
-            if (activeKeysList.classList.contains('hidden')) {
-                setButtonLoading(fetchKeysBtn, false, "", "アクセスキー表示");
+            if (activeCodesList.classList.contains('hidden')) {
+                setButtonLoading(fetchCodesBtn, false, "", "アクセスコード表示");
             } else {
-                fetchKeysBtn.disabled = false;
+                fetchCodesBtn.disabled = false;
             }
         }
     });
 
-    function renderActiveKeys(keys) {
-        activeKeysList.innerHTML = '';
-        activeKeysList.classList.remove('hidden');
+    function renderActiveCodes(codes) {
+        activeCodesList.innerHTML = '';
+        activeCodesList.classList.remove('hidden');
         
-        const keyEntries = Object.entries(keys);
-        if (keyEntries.length === 0) {
-            activeKeysList.innerHTML = '<p style="font-size:0.9rem; color:#888;">有効なキーはありません</p>';
+        const codeEntries = Object.entries(codes);
+        if (codeEntries.length === 0) {
+            activeCodesList.innerHTML = '<p style="font-size:0.9rem; color:#888;">有効なコードはありません</p>';
             return;
         }
 
-        keyEntries.forEach(([key, expiry]) => {
+        codeEntries.forEach(([code, expiry]) => {
             const item = document.createElement('div');
-            item.className = 'key-item';
+            item.className = 'code-item';
             
             const expiryDate = new Date(expiry);
             item.innerHTML = `
-                <span class="key-code">${key}</span>
-                <span class="key-expiry">期限: ${expiryDate.toLocaleString()}</span>
+                <span class="code-value">${code}</span>
+                <span class="code-expiry">期限: ${expiryDate.toLocaleString()}</span>
             `;
-            activeKeysList.appendChild(item);
+            activeCodesList.appendChild(item);
         });
     }
 
@@ -315,10 +315,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // --- 1. データの保存・同期 ---
     async function loadData() {
         if (!API_URL) return;
-        const key = getStoredKey();
+        const code = getStoredCode();
         setSyncStatus('saving', '読込中...');
         try {
-            const res = await fetch(`${API_URL}?action=getSeatData&accessKey=${key}`);
+            const res = await fetch(`${API_URL}?action=getSeatData&accessCode=${code}`);
             const json = await res.json();
             if (json.authError) {
                 showAccessScreen("セッションが切れました");
@@ -338,11 +338,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function saveData() {
         if (!API_URL) return;
-        const key = getStoredKey();
+        const code = getStoredCode();
         try {
             const res = await fetch(API_URL, {
                 method: "POST",
-                body: JSON.stringify({ action: "saveSeatData", accessKey: key, data: seatData })
+                body: JSON.stringify({ action: "saveSeatData", accessCode: code, data: seatData })
             });
             const json = await res.json();
             if (json.authError) {
