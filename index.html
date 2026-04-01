@@ -4,14 +4,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>バック側座席管理</title>
+    <title>バック側座席管理 v2</title>
     <link rel="stylesheet" href="app/style.css">
 </head>
 
 <body>
     <header>
         <div class="header-container">
-            <h1>バック側座席管理</h1>
+            <h1>バック側座席管理<span class="version-badge">v2</span></h1>
             <button type="button" id="admin-open-btn">管理者</button>
         </div>
     </header>
@@ -99,7 +99,7 @@
                 <div class="sync-saving" style="margin-top: 15px; width: 24px; height: 24px; border-radius: 50%; border: 3px solid #007bff; border-top-color: transparent; animation: spin 0.8s linear infinite; display: inline-block;"></div>
             </div>
             <div id="auth-input-container">
-                <h2>アクセスコード入力</h2>
+                <h2>アクセスコード入力 (v2)</h2>
                 <div class="input-group">
                     <input type="text" id="access-key-input" placeholder="アクセスコードを入力" maxlength="8">
                     <button id="access-submit-btn">入場</button>
@@ -115,13 +115,19 @@
     <!-- 管理者ログインモーダル -->
     <div id="admin-login-modal" class="modal hidden">
         <div class="modal-content">
-            <h3>管理者ログイン</h3>
-            <input type="password" id="admin-pass-input" placeholder="管理者パスワード">
-            <div class="modal-buttons">
-                <button id="admin-login-submit">ログイン</button>
-                <button id="admin-login-cancel">キャンセル</button>
+            <div id="admin-auth-loading-msg" class="hidden" style="text-align: center; padding: 20px 0;">
+                <h3 style="margin-bottom: 0; border: none;">ログイン実行中...</h3>
+                <div class="sync-saving" style="margin-top: 15px; width: 24px; height: 24px; border-radius: 50%; border: 3px solid #007bff; border-top-color: transparent; animation: spin 0.8s linear infinite; display: inline-block;"></div>
             </div>
-            <p id="admin-login-error" class="error-msg"></p>
+            <div id="admin-login-inputs">
+                <h3>管理者ログイン</h3>
+                <input type="password" id="admin-pass-input" placeholder="管理者パスワード">
+                <div class="modal-buttons">
+                    <button id="admin-login-submit">ログイン</button>
+                    <button id="admin-login-cancel">キャンセル</button>
+                </div>
+                <p id="admin-login-error" class="error-msg"></p>
+            </div>
         </div>
     </div>
 
