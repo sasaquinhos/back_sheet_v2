@@ -81,14 +81,14 @@ header {
 }
 
 #admin-open-btn, #podium-btn, #clear-all-btn {
-    min-width: 70px;
+    min-width: 80px;
     text-align: center;
     box-sizing: border-box;
+    font-size: 12px;
+    padding: 6px 10px;
 }
 
 #admin-open-btn {
-    padding: 6px 12px;
-    font-size: 11px;
     background: transparent;
     color: #333;
     border: 1px solid #333;
@@ -113,9 +113,8 @@ header {
         text-align: left;
     }
     #admin-open-btn, #podium-btn, #clear-all-btn {
-        padding: 4px 8px;
-        font-size: 10px;
-        min-width: 60px;
+        padding: 6px 8px;
+        min-width: 75px;
     }
     .header-right-actions {
         position: static;
@@ -474,8 +473,6 @@ main {
 }
 
 #podium-btn {
-    padding: 6px 12px;
-    font-size: 11px;
     border: 1px solid var(--color-j);
     color: white;
     background: var(--color-j);
@@ -530,8 +527,6 @@ main {
 }
 
 #clear-all-btn {
-    padding: 6px 12px;
-    font-size: 11px;
     border: 1px solid #e74c3c;
     color: #e74c3c;
     background: transparent;
