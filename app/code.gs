@@ -24,40 +24,40 @@ function initProperties() {
 function doGet(e) {
   initProperties();
   const action = e.parameter.action;
-  const accessKey = e.parameter.accessKey;
+  const accessCode = e.parameter.accessCode;
 
   try {
-    // 1. アクセスキーの検証アクション
-    if (action === "verifyKey") {
+    // 1. アクセスコードの検証アクション
+    if (action === "verifyCode") {
       const props = PropertiesService.getScriptProperties();
-      const keys = JSON.parse(props.getProperty("ACCESS_KEYS") || "{}");
+      const codes = JSON.parse(props.getProperty("ACCESS_CODES") || "{}");
       const now = new Date().getTime();
       
-      // システム内に有効なキーが存在するかチェック
-      let hasActiveKey = false;
-      for (const k in keys) {
-        if (keys[k] > now) {
-          hasActiveKey = true;
+      // システム内に有効なコードが存在するかチェック
+      let hasActiveCode = false;
+      for (const k in codes) {
+        if (codes[k] > now) {
+          hasActiveCode = true;
           break;
         }
       }
 
-      // システムにキーがない場合
-      if (!hasActiveKey) {
-        return createJsonResponse({ status: "error", message: "アクセスキーを入力してください" });
+      // システムにコードがない場合
+      if (!hasActiveCode) {
+        return createJsonResponse({ status: "error", message: "アクセスコードを入力してください" });
       }
 
-      // キーが入力されていない、または間違っている/期限切れの場合
-      if (!accessKey || !keys[accessKey] || keys[accessKey] <= now) {
-        return createJsonResponse({ status: "error", message: "無効または期限切れのキーです" });
+      // コードが入力されていない、または間違っている/期限切れの場合
+      if (!accessCode || !codes[accessCode] || codes[accessCode] <= now) {
+        return createJsonResponse({ status: "error", message: "無効または期限切れのコードです" });
       }
 
-      return createJsonResponse({ status: "success", message: "有効なキーです" });
+      return createJsonResponse({ status: "success", message: "有効なコードです" });
     }
 
-    // 2. 座席データの取得 (有効なキーが必要)
+    // 2. 座席データの取得 (有効なコードが必要)
     if (action === "getSeatData") {
-      if (!isValidAccessKey(accessKey)) {
+      if (!isValidAccessCode(accessCode)) {
         return createJsonResponse({ status: "error", message: "認証が必要です", authError: true });
       }
       const spreadsheet = SpreadsheetApp.openById(PROJECTE_SPREADSHEET_ID);
@@ -87,9 +87,9 @@ function doPost(e) {
   const action = payload.action;
 
   try {
-    // 1. 座席データの保存 (有効なキーが必要)
+    // 1. 座席データの保存 (有効なコードが必要)
     if (action === "saveSeatData") {
-      if (!isValidAccessKey(payload.accessKey)) {
+      if (!isValidAccessCode(payload.accessCode)) {
         return createJsonResponse({ status: "error", message: "認証が必要です", authError: true });
       }
       const spreadsheet = SpreadsheetApp.openById(PROJECTE_SPREADSHEET_ID);
@@ -105,17 +105,17 @@ function doPost(e) {
       return createJsonResponse({ status: isAdmin ? "success" : "error", message: isAdmin ? "ログイン成功" : "パスワードが違います" });
     }
 
-    // 3. アクセスキー生成 (管理者パスワードが必要)
-    if (action === "generateKey") {
+    // 3. アクセスコード生成 (管理者パスワードが必要)
+    if (action === "generateCode") {
       if (!isAdmin(payload.adminPassword)) return createJsonResponse({ status: "error", message: "権限がありません" });
       
-      const newKey = Math.random().toString(36).substring(2, 10).toUpperCase(); // 8文字のランダムキー
+      const newCode = Math.random().toString(36).substring(2, 10).toUpperCase(); // 8文字のランダムコード
       const hours = parseInt(payload.hours || 0);
       const mins = parseInt(payload.mins || 0);
       const expiry = new Date().getTime() + (hours * 60 * 60 * 1000) + (mins * 60 * 1000);
       
-      saveAccessKey(newKey, expiry);
-      return createJsonResponse({ status: "success", key: newKey, expiry: new Date(expiry).toLocaleString() });
+      saveAccessCode(newCode, expiry);
+      return createJsonResponse({ status: "success", code: newCode, expiry: new Date(expiry).toLocaleString() });
     }
 
     // 4. 管理者パスワード変更
@@ -125,20 +125,20 @@ function doPost(e) {
       return createJsonResponse({ status: "success", message: "パスワードを更新しました" });
     }
 
-    // 5. 現在有効なキーの取得 (管理者パスワードが必要)
-    if (action === "getAccessKeys") {
+    // 5. 現在有効なコードの取得 (管理者パスワードが必要)
+    if (action === "getAccessCodes") {
       if (!isAdmin(payload.adminPassword)) return createJsonResponse({ status: "error", message: "権限がありません" });
       const props = PropertiesService.getScriptProperties();
-      const keysJson = props.getProperty("ACCESS_KEYS");
-      const keys = keysJson ? JSON.parse(keysJson) : {};
+      const codesJson = props.getProperty("ACCESS_CODES");
+      const codes = codesJson ? JSON.parse(codesJson) : {};
       
       // 有効なものだけ抽出
       const now = new Date().getTime();
-      const activeKeys = {};
-      for (const k in keys) {
-        if (keys[k] > now) activeKeys[k] = keys[k];
+      const activeCodes = {};
+      for (const k in codes) {
+        if (codes[k] > now) activeCodes[k] = codes[k];
       }
-      return createJsonResponse({ status: "success", keys: activeKeys });
+      return createJsonResponse({ status: "success", codes: activeCodes });
     }
 
     return createJsonResponse({ status: "error", message: "不明なアクションです" });
@@ -149,22 +149,22 @@ function doPost(e) {
 }
 
 /**
- * アクセスキーの有効性チェック
+ * アクセスコードの有効性チェック
  */
-function isValidAccessKey(key) {
-  if (!key) return false;
+function isValidAccessCode(code) {
+  if (!code) return false;
   const props = PropertiesService.getScriptProperties();
-  const keysJson = props.getProperty("ACCESS_KEYS");
-  if (!keysJson) return false;
+  const codesJson = props.getProperty("ACCESS_CODES");
+  if (!codesJson) return false;
   
-  const keys = JSON.parse(keysJson);
-  const expiry = keys[key];
+  const codes = JSON.parse(codesJson);
+  const expiry = codes[code];
   if (!expiry) return false;
   
   // 期限チェック
   if (new Date().getTime() > expiry) {
-    delete keys[key];
-    props.setProperty("ACCESS_KEYS", JSON.stringify(keys));
+    delete codes[code];
+    props.setProperty("ACCESS_CODES", JSON.stringify(codes));
     return false;
   }
   return true;
@@ -178,14 +178,14 @@ function isAdmin(pass) {
 }
 
 /**
- * アクセスキーの保存
+ * アクセスコードの保存
  */
-function saveAccessKey(key, expiry) {
+function saveAccessCode(code, expiry) {
   const props = PropertiesService.getScriptProperties();
   // 常に最新1件にするため、空のオブジェクトから開始
-  let keys = {}; 
-  keys[key] = expiry;
-  props.setProperty("ACCESS_KEYS", JSON.stringify(keys));
+  let codes = {}; 
+  codes[code] = expiry;
+  props.setProperty("ACCESS_CODES", JSON.stringify(codes));
 }
 
 /**
