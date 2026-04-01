@@ -80,6 +80,12 @@ header {
     align-items: center;
 }
 
+#admin-open-btn, #podium-btn, #clear-all-btn {
+    min-width: 70px;
+    text-align: center;
+    box-sizing: border-box;
+}
+
 #admin-open-btn {
     padding: 6px 12px;
     font-size: 11px;
@@ -109,6 +115,7 @@ header {
     #admin-open-btn, #podium-btn, #clear-all-btn {
         padding: 4px 8px;
         font-size: 10px;
+        min-width: 60px;
     }
     .header-right-actions {
         position: static;
