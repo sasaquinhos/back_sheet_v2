@@ -25,6 +25,8 @@
     /* KSWフォース: 赤 */
     --color-j: #444444;
     /* お立ち台: 濃いグレー */
+    --color-k: #af7ac5;
+    /* ラド・ソレアド: 薄い紫 */
     --color-none: #ecf0f1;
     /* 未選択 */
 }
@@ -267,6 +269,11 @@ main {
     color: white;
 }
 
+.group-btn[data-group="K"] {
+    background-color: var(--color-k);
+    color: white;
+}
+
 #special-input-a {
     display: flex;
     align-items: center;
@@ -415,6 +422,10 @@ main {
 
 .seat.group-J {
     background-color: var(--color-j);
+}
+
+.seat.group-K {
+    background-color: var(--color-k);
 }
 
 /* 集計テーブル */
