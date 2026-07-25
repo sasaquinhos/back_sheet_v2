@@ -2,7 +2,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const ROWS = 9;
     const COLS_PER_BLOCK = 22;
     const TOTAL_COLS = COLS_PER_BLOCK * 2;
-    const GROUPS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+    const GROUPS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K'];
 
     let currentGroup = null;
     let seatData = {}; // {seatId: group}
